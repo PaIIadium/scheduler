@@ -8,4 +8,4 @@ class Entry:
         self.enqueue_time = enqueue_time
 
     def is_completed(self):
-        return True if abs(self.ms_left) < 0.00001 else False
+        return True if self.ms_left < 0.00001 else False

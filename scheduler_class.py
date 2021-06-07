@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import entry_class as etr
 
@@ -10,6 +12,7 @@ class Scheduler:
 
         self.time_counter = 0
         self.current_entry = None
+        self.current_entry2 = None
 
         self.idle_percentage = 0
         self.avg_common_queue_len = 0
@@ -30,32 +33,42 @@ class Scheduler:
         while True:
             self.check_times_list()
 
-            if self.current_entry is not None and self.current_entry.is_completed():
-                if self.closest_deadline_entry == self.current_entry:
-                    self.closest_deadline_entry = None
-                if self.current_entry.priority:
-                    self.priority_waiting_times.append(self.current_entry.waiting_time)
-                else:
-                    self.common_waiting_times.append(self.current_entry.waiting_time)
+            is_entry_complete = self.check_is_complete(self.current_entry)
+            if is_entry_complete:
                 self.current_entry = None
+            else:
+                is_entry2_complete = self.check_is_complete(self.current_entry2)
+                if is_entry2_complete:
+                    self.current_entry2 = None
 
             is_deadline = self.check_deadline()
             if is_deadline:
                 self.process_expired_entry()
             self.closest_deadline_entry = self.find_closest_deadline_entry()
 
-            self.current_entry = self.dequeue_entry_from_queues()
+            order = random.uniform(0, 1)
+            if order < 0.5:
+                self.current_entry = self.dequeue_entry_from_queues(self.current_entry)
+                self.current_entry2 = self.dequeue_entry_from_queues(self.current_entry2)
+            else:
+                self.current_entry2 = self.dequeue_entry_from_queues(self.current_entry2)
+                self.current_entry = self.dequeue_entry_from_queues(self.current_entry)
 
             if len(self.entries) == 0 and self.common_queue.is_empty() and self.priority_queue.is_empty() \
-                    and self.current_entry is None:
+                    and self.current_entry is None and self.current_entry2 is None:
                 break
 
             next_action_time = self.find_next_action_time()
             time_to_next_action = next_action_time - self.time_counter
             if self.current_entry is not None:
                 self.current_entry.ms_left -= time_to_next_action
-            else:
-                idle_time += time_to_next_action
+            if self.current_entry2 is not None:
+                self.current_entry2.ms_left -= time_to_next_action
+
+            if self.current_entry is None:
+                idle_time += time_to_next_action / 2
+            if self.current_entry2 is None:
+                idle_time += time_to_next_action / 2
 
             self.common_queue.add_waiting_time(time_to_next_action)
             self.priority_queue.add_waiting_time(time_to_next_action)
@@ -84,19 +97,19 @@ class Scheduler:
             return True
         return False
 
-    def dequeue_entry_from_queues(self):
-        next_entry = self.priority_queue.deque(self.current_entry)
-        if next_entry != self.current_entry:
-            if self.current_entry is not None:
-                if self.current_entry.priority:
-                    self.priority_queue.retrieve(self.current_entry)
+    def dequeue_entry_from_queues(self, current_entry):
+        next_entry = self.priority_queue.deque(current_entry)
+        if next_entry != current_entry:
+            if current_entry is not None:
+                if current_entry.priority:
+                    self.priority_queue.retrieve(current_entry)
                 else:
-                    self.common_queue.retrieve(self.current_entry)
+                    self.common_queue.retrieve(current_entry)
             return next_entry
-        next_entry = self.common_queue.deque(self.current_entry)
-        if next_entry != self.current_entry:
-            if self.current_entry is not None:
-                self.common_queue.retrieve(self.current_entry)
+        next_entry = self.common_queue.deque(current_entry)
+        if next_entry != current_entry:
+            if current_entry is not None:
+                self.common_queue.retrieve(current_entry)
         return next_entry
 
     def find_next_action_time(self):
@@ -108,11 +121,15 @@ class Scheduler:
         if self.current_entry is not None:
             entry_complete_time = self.time_counter + self.current_entry.ms_left
 
-        if self.closest_deadline_entry is not None:
-            next_action_time = min(enqueue_time, entry_complete_time, self.closest_deadline_entry.deadline)
-            return next_action_time
+        entry2_complete_time = np.Infinity
+        if self.current_entry2 is not None:
+            entry2_complete_time = self.time_counter + self.current_entry2.ms_left
 
-        return min(enqueue_time, entry_complete_time)
+        closest_deadline = np.Infinity
+        if self.closest_deadline_entry is not None:
+            closest_deadline = self.closest_deadline_entry.deadline
+
+        return min(enqueue_time, entry_complete_time, entry2_complete_time, closest_deadline)
 
     def check_deadline(self):
         if self.closest_deadline_entry is None:
@@ -125,6 +142,8 @@ class Scheduler:
         if self.closest_deadline_entry.priority:
             if self.closest_deadline_entry == self.current_entry:
                 self.current_entry = None
+            elif self.closest_deadline_entry == self.current_entry2:
+                self.current_entry2 = None
             else:
                 self.priority_queue.remove_entry(self.closest_deadline_entry)
             self.total_priority_expired_entries += 1
@@ -132,6 +151,8 @@ class Scheduler:
         else:
             if self.closest_deadline_entry == self.current_entry:
                 self.current_entry = None
+            elif self.closest_deadline_entry == self.current_entry2:
+                self.current_entry2 = None
             else:
                 self.common_queue.remove_entry(self.closest_deadline_entry)
             self.total_common_expired_entries += 1
@@ -140,7 +161,7 @@ class Scheduler:
     def find_closest_deadline_entry(self):
         priority_min = self.priority_queue.get_closest_deadline_entry()
         common_min = self.common_queue.get_closest_deadline_entry()
-        entries = [self.current_entry, priority_min, common_min]
+        entries = [self.current_entry, self.current_entry2, priority_min, common_min]
         min_entry = entries[0]
         for index in range(len(entries)):
             if entries[index] is None:
@@ -150,3 +171,14 @@ class Scheduler:
             if entries[index].deadline < min_entry.deadline:
                 min_entry = entries[index]
         return min_entry
+
+    def check_is_complete(self, entry):
+        if entry is not None and entry.is_completed():
+            if self.closest_deadline_entry == entry:
+                self.closest_deadline_entry = None
+            if entry.priority:
+                self.priority_waiting_times.append(entry.waiting_time)
+            else:
+                self.common_waiting_times.append(entry.waiting_time)
+            return True
+        return False
