@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 import queue_class as q
 import numpy as np
 
-MIN_INTERVAL = 0.5
-MAX_INTERVAL = 4.75
-INTERVAL_STEP = 0.25
+MIN_INTERVAL = 7
+MAX_INTERVAL = 36
+INTERVAL_STEP = 1
 ENTRY_DURATION = 8
 ENTRIES_NUMBER = 75000
 
