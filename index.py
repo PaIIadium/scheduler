@@ -4,19 +4,19 @@ import matplotlib.pyplot as plt
 import queue_class as q
 import numpy as np
 
-MIN_INTERVAL = 7
-MAX_INTERVAL = 36
-INTERVAL_STEP = 1
-ENTRY_DURATION = 8
-ENTRIES_NUMBER = 75000
+MIN_INTERVAL = 700
+MAX_INTERVAL = 3600
+INTERVAL_STEP = 100
+ENTRY_DURATION = 800
+ENTRIES_NUMBER = 7500
 
 
 def single_test(interval, entries_number, entry_duration, common_queue, priority_queue):
     frequency = 1 / interval
     total_time = entries_number * interval
-    generator = gen.Generator(total_time, frequency, 0.2, 0.3, 0.5, 0.5, entry_duration)
-    entries = generator.generate()
-    scheduler = sch.Scheduler(common_queue, priority_queue, entries)
+    generator = gen.Generator(total_time, frequency, 0.1, 0.4, 0.5, 0.5, entry_duration)
+    (entries, frame) = generator.generate()
+    scheduler = sch.Scheduler(common_queue, priority_queue, entries, 100)
     scheduler.run()
     return scheduler
 

@@ -3,10 +3,12 @@ import entry_class as etr
 
 
 class Scheduler:
-    def __init__(self, queue, priority_queue, entries):
+    def __init__(self, queue, priority_queue, entries, frame):
         self.common_queue = queue
         self.priority_queue = priority_queue
         self.entries = entries
+        self.frame = frame
+        self.frame_left = self.frame
 
         self.time_counter = 0
         self.current_entry = None
@@ -44,7 +46,8 @@ class Scheduler:
                 self.process_expired_entry()
             self.closest_deadline_entry = self.find_closest_deadline_entry()
 
-            self.current_entry = self.dequeue_entry_from_queues()
+            if self.frame_left == self.frame:
+                self.current_entry = self.dequeue_entry_from_queues()
 
             if len(self.entries) == 0 and self.common_queue.is_empty() and self.priority_queue.is_empty() \
                     and self.current_entry is None:
@@ -63,6 +66,9 @@ class Scheduler:
             common_queue_len_sum += self.common_queue.get_queue_length() * time_to_next_action
             priority_queue_len_sum += self.priority_queue.get_queue_length() * time_to_next_action
 
+            self.frame_left -= time_to_next_action
+            if self.frame_left == 0:
+                self.frame_left = self.frame
             self.time_counter = next_action_time
 
         self.idle_percentage = idle_time / self.time_counter * 100
@@ -108,11 +114,11 @@ class Scheduler:
         if self.current_entry is not None:
             entry_complete_time = self.time_counter + self.current_entry.ms_left
 
+        closest_deadline = np.Infinity
         if self.closest_deadline_entry is not None:
-            next_action_time = min(enqueue_time, entry_complete_time, self.closest_deadline_entry.deadline)
-            return next_action_time
+            closest_deadline = self.closest_deadline_entry.deadline
 
-        return min(enqueue_time, entry_complete_time)
+        return min(enqueue_time, entry_complete_time, closest_deadline, self.frame_left + self.time_counter)
 
     def check_deadline(self):
         if self.closest_deadline_entry is None:
